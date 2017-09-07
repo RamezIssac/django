@@ -4,6 +4,7 @@ A series of tests to establish that the command-line bash completion works.
 import os
 import sys
 import unittest
+from contextlib import suppress
 
 from django.apps import apps
 from django.core.management import ManagementUtility
@@ -50,10 +51,8 @@ class BashCompletionTests(unittest.TestCase):
     def _run_autocomplete(self):
         util = ManagementUtility(argv=sys.argv)
         with captured_stdout() as stdout:
-            try:
+            with suppress(SystemExit):
                 util.autocomplete()
-            except SystemExit:
-                pass
         return stdout.getvalue().strip().split('\n')
 
     def test_django_admin_py(self):
@@ -97,7 +96,8 @@ class BashCompletionTests(unittest.TestCase):
         "Application names will be autocompleted for an AppCommand"
         self._user_input('django-admin sqlmigrate a')
         output = self._run_autocomplete()
-        a_labels = sorted(app_config.label
-            for app_config in apps.get_app_configs()
-            if app_config.label.startswith('a'))
+        a_labels = sorted(
+            app_config.label for app_config in apps.get_app_configs()
+            if app_config.label.startswith('a')
+        )
         self.assertEqual(output, a_labels)

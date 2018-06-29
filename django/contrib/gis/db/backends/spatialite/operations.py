@@ -1,6 +1,5 @@
 """
 SQL functions reference lists:
-https://web.archive.org/web/20130407175746/https://www.gaia-gis.it/gaia-sins/spatialite-sql-4.0.0.html
 https://www.gaia-gis.it/gaia-sins/spatialite-sql-4.2.1.html
 """
 from django.contrib.gis.db.backends.base.operations import (
@@ -9,8 +8,7 @@ from django.contrib.gis.db.backends.base.operations import (
 from django.contrib.gis.db.backends.spatialite.adapter import SpatiaLiteAdapter
 from django.contrib.gis.db.backends.utils import SpatialOperator
 from django.contrib.gis.db.models import aggregates
-from django.contrib.gis.geometry.backend import Geometry
-from django.contrib.gis.geos.geometry import GEOSGeometryBase
+from django.contrib.gis.geos.geometry import GEOSGeometry, GEOSGeometryBase
 from django.contrib.gis.geos.prototypes.io import wkb_r, wkt_r
 from django.contrib.gis.measure import Distance
 from django.core.exceptions import ImproperlyConfigured
@@ -49,6 +47,8 @@ class SpatiaLiteOperations(BaseSpatialOperations, DatabaseOperations):
         'contains': SpatialiteNullCheckOperator(func='Contains'),
         'intersects': SpatialiteNullCheckOperator(func='Intersects'),
         'relate': SpatialiteNullCheckOperator(func='Relate'),
+        'coveredby': SpatialiteNullCheckOperator(func='CoveredBy'),
+        'covers': SpatialiteNullCheckOperator(func='Covers'),
         # Returns true if B's bounding box completely contains A's bounding box.
         'contained': SpatialOperator(func='MbrWithin'),
         # Returns true if A's bounding box completely contains B's bounding box.
@@ -69,6 +69,7 @@ class SpatiaLiteOperations(BaseSpatialOperations, DatabaseOperations):
         return 'CAST (AsEWKB(%s) AS BLOB)' if self.spatial_version >= (4, 3, 0) else 'AsText(%s)'
 
     function_names = {
+        'ForcePolygonCW': 'ST_ForceLHR',
         'Length': 'ST_Length',
         'LineLocatePoint': 'ST_Line_Locate_Point',
         'NumPoints': 'ST_NPoints',
@@ -97,8 +98,8 @@ class SpatiaLiteOperations(BaseSpatialOperations, DatabaseOperations):
                     self.connection.settings_dict['NAME'],
                 )
             ) from exc
-        if version < (4, 0, 0):
-            raise ImproperlyConfigured('GeoDjango only supports SpatiaLite versions 4.0.0 and above.')
+        if version < (4, 1, 0):
+            raise ImproperlyConfigured('GeoDjango only supports SpatiaLite versions 4.1.0 and above.')
         return version
 
     def convert_extent(self, box):
@@ -107,7 +108,7 @@ class SpatiaLiteOperations(BaseSpatialOperations, DatabaseOperations):
         """
         if box is None:
             return None
-        shell = Geometry(box).shell
+        shell = GEOSGeometry(box).shell
         xmin, ymin = shell[0][:2]
         xmax, ymax = shell[2][:2]
         return (xmin, ymin, xmax, ymax)

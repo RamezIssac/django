@@ -6,7 +6,7 @@ import re
 from ctypes import addressof, byref, c_double
 
 from django.contrib.gis import gdal
-from django.contrib.gis.geometry.regex import hex_regex, json_regex, wkt_regex
+from django.contrib.gis.geometry import hex_regex, json_regex, wkt_regex
 from django.contrib.gis.geos import prototypes as capi
 from django.contrib.gis.geos.base import GEOSBase
 from django.contrib.gis.geos.coordseq import GEOSCoordSeq
@@ -113,7 +113,7 @@ class GEOSGeometryBase(GEOSBase):
         parts = ewkt.split(b';', 1)
         if len(parts) == 2:
             srid_part, wkt = parts
-            match = re.match(b'SRID=(?P<srid>\-?\d+)', srid_part)
+            match = re.match(br'SRID=(?P<srid>\-?\d+)', srid_part)
             if not match:
                 raise ValueError('EWKT has invalid SRID part.')
             srid = int(match.group('srid'))
@@ -143,6 +143,9 @@ class GEOSGeometryBase(GEOSBase):
             except (ValueError, GEOSException):
                 return False
         return isinstance(other, GEOSGeometry) and self.srid == other.srid and self.equals_exact(other)
+
+    def __hash__(self):
+        return hash((self.srid, self.wkt))
 
     # ### Geometry set-like operations ###
     # Thanks to Sean Gillies for inspiration:
@@ -496,6 +499,18 @@ class GEOSGeometryBase(GEOSBase):
         """
         return self._topology(capi.geos_buffer(self.ptr, width, quadsegs))
 
+    def buffer_with_style(self, width, quadsegs=8, end_cap_style=1, join_style=1, mitre_limit=5.0):
+        """
+        Same as buffer() but allows customizing the style of the buffer.
+
+        End cap style can be round (1), flat (2), or square (3).
+        Join style can be round (1), mitre (2), or bevel (3).
+        Mitre ratio limit only affects mitered join style.
+        """
+        return self._topology(
+            capi.geos_bufferwithstyle(self.ptr, width, quadsegs, end_cap_style, join_style, mitre_limit),
+        )
+
     @property
     def centroid(self):
         """
@@ -613,7 +628,7 @@ class GEOSGeometryBase(GEOSBase):
 
     def clone(self):
         "Clone this Geometry."
-        return GEOSGeometry(capi.geom_clone(self.ptr), srid=self.srid)
+        return GEOSGeometry(capi.geom_clone(self.ptr))
 
 
 class LinearGeometryMixin:

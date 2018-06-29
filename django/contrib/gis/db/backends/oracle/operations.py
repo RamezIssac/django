@@ -15,8 +15,7 @@ from django.contrib.gis.db.backends.base.operations import (
 from django.contrib.gis.db.backends.oracle.adapter import OracleSpatialAdapter
 from django.contrib.gis.db.backends.utils import SpatialOperator
 from django.contrib.gis.db.models import aggregates
-from django.contrib.gis.geometry.backend import Geometry
-from django.contrib.gis.geos.geometry import GEOSGeometryBase
+from django.contrib.gis.geos.geometry import GEOSGeometry, GEOSGeometryBase
 from django.contrib.gis.geos.prototypes.io import wkb_r
 from django.contrib.gis.measure import Distance
 from django.db.backends.oracle.operations import DatabaseOperations
@@ -69,6 +68,7 @@ class OracleOperations(BaseSpatialOperations, DatabaseOperations):
         'Centroid': 'SDO_GEOM.SDO_CENTROID',
         'Difference': 'SDO_GEOM.SDO_DIFFERENCE',
         'Distance': 'SDO_GEOM.SDO_DISTANCE',
+        'Envelope': 'SDO_GEOM_MBR',
         'Intersection': 'SDO_GEOM.SDO_INTERSECTION',
         'IsValid': 'SDO_GEOM.VALIDATE_GEOMETRY_WITH_CONTEXT',
         'Length': 'SDO_GEOM.SDO_LENGTH',
@@ -106,9 +106,9 @@ class OracleOperations(BaseSpatialOperations, DatabaseOperations):
     }
 
     unsupported_functions = {
-        'AsGeoJSON', 'AsKML', 'AsSVG', 'Azimuth', 'Envelope', 'ForceRHR',
-        'GeoHash', 'LineLocatePoint', 'MakeValid', 'MemSize', 'Scale',
-        'SnapToGrid', 'Translate',
+        'AsGeoJSON', 'AsKML', 'AsSVG', 'Azimuth',
+        'ForcePolygonCW', 'ForceRHR', 'GeoHash', 'LineLocatePoint',
+        'MakeValid', 'MemSize', 'Scale', 'SnapToGrid', 'Translate',
     }
 
     def geo_quote_name(self, name):
@@ -119,7 +119,7 @@ class OracleOperations(BaseSpatialOperations, DatabaseOperations):
             # Generally, Oracle returns a polygon for the extent -- however,
             # it can return a single point if there's only one Point in the
             # table.
-            ext_geom = Geometry(memoryview(clob.read()))
+            ext_geom = GEOSGeometry(memoryview(clob.read()))
             gtype = str(ext_geom.geom_type)
             if gtype == 'Polygon':
                 # Construct the 4-tuple from the coordinates in the polygon.
@@ -212,3 +212,6 @@ class OracleOperations(BaseSpatialOperations, DatabaseOperations):
                     geom.srid = srid
                 return geom
         return converter
+
+    def get_area_att_for_field(self, field):
+        return 'sq_m'
